@@ -472,6 +472,27 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Build the mailto href for sharing an activity via email
+  function buildEmailShareHref(name, description, schedule) {
+    const activityUrl =
+      window.location.origin +
+      window.location.pathname +
+      "?activity=" +
+      encodeURIComponent(name);
+    const subject = encodeURIComponent("Check out: " + name);
+    const body = encodeURIComponent(
+      "I thought you might be interested in this activity at Mergington High School!\n\n" +
+        name +
+        "\n" +
+        description +
+        "\nSchedule: " +
+        schedule +
+        "\n\nView it here: " +
+        activityUrl
+    );
+    return `mailto:?subject=${subject}&body=${body}`;
+  }
+
   // Function to render a single activity card
   function renderActivityCard(name, details) {
     const activityCard = document.createElement("div");
@@ -569,6 +590,17 @@ document.addEventListener("DOMContentLoaded", () => {
         `
         }
       </div>
+      <div class="share-container">
+        <button class="share-button" data-activity="${name}" aria-label="Share this activity">
+          🔗 Share
+        </button>
+        <div class="share-popover hidden" role="menu">
+          <button class="share-option copy-link-btn" data-activity="${name}">📋 Copy Link</button>
+          <a class="share-option email-share-btn"
+            href="${buildEmailShareHref(name, details.description, formattedSchedule)}"
+            target="_blank">📧 Share via Email</a>
+        </div>
+      </div>
     `;
 
     // Add click handlers for delete buttons
@@ -586,6 +618,46 @@ document.addEventListener("DOMContentLoaded", () => {
         });
       }
     }
+
+    // Share button: toggle popover
+    const shareButton = activityCard.querySelector(".share-button");
+    const sharePopover = activityCard.querySelector(".share-popover");
+    shareButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      // Close all other open popovers
+      document.querySelectorAll(".share-popover:not(.hidden)").forEach((p) => {
+        if (p !== sharePopover) p.classList.add("hidden");
+      });
+      sharePopover.classList.toggle("hidden");
+    });
+
+    // Copy link button
+    const copyLinkBtn = activityCard.querySelector(".copy-link-btn");
+    copyLinkBtn.addEventListener("click", () => {
+      const url =
+        window.location.origin +
+        window.location.pathname +
+        "?activity=" +
+        encodeURIComponent(name);
+      navigator.clipboard.writeText(url).then(() => {
+        copyLinkBtn.textContent = "✅ Copied!";
+        setTimeout(() => {
+          copyLinkBtn.textContent = "📋 Copy Link";
+        }, 2000);
+      }).catch(() => {
+        copyLinkBtn.textContent = "❌ Copy failed";
+        setTimeout(() => {
+          copyLinkBtn.textContent = "📋 Copy Link";
+        }, 2000);
+      });
+      sharePopover.classList.add("hidden");
+    });
+
+    // Close popover when clicking email link
+    const emailShareBtn = activityCard.querySelector(".email-share-btn");
+    emailShareBtn.addEventListener("click", () => {
+      sharePopover.classList.add("hidden");
+    });
 
     activitiesList.appendChild(activityCard);
   }
@@ -861,8 +933,35 @@ document.addEventListener("DOMContentLoaded", () => {
     setTimeRangeFilter,
   };
 
+  // Close share popovers when clicking outside of them
+  document.addEventListener("click", () => {
+    document.querySelectorAll(".share-popover:not(.hidden)").forEach((p) => {
+      p.classList.add("hidden");
+    });
+  });
+
+  // Handle deep link: if URL has ?activity=, scroll to and highlight that card
+  function handleDeepLink() {
+    const params = new URLSearchParams(window.location.search);
+    const activityName = params.get("activity");
+    if (!activityName) return;
+
+    const cards = document.querySelectorAll(".activity-card");
+    cards.forEach((card) => {
+      const heading = card.querySelector("h4");
+      if (
+        heading &&
+        heading.textContent.trim().toLowerCase() === activityName.toLowerCase()
+      ) {
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+        card.classList.add("activity-highlighted");
+        setTimeout(() => card.classList.remove("activity-highlighted"), 3000);
+      }
+    });
+  }
+
   // Initialize app
   checkAuthentication();
   initializeFilters();
-  fetchActivities();
+  fetchActivities().then(handleDeepLink);
 });
